@@ -320,11 +320,11 @@ def build_jupytext_contents_manager_class(base_contents_manager_class):
 
             # We will now read a second file if this is a paired notebooks.
             nbk = model['content']
-            if nbk.hasattr('metadata'):
-                jupytext_formats = nbk.metadata.get('jupytext', {}).get('formats') or self.default_formats(path)
-            else:
-                jupytext_formats = self.default_formats(path)
-            jupytext_formats = long_form_multiple_formats(jupytext_formats, nbk.metadata,
+
+            nbk_metadata = nbk.get('metadata',{})
+
+            jupytext_formats = nbk_metadata.get('jupytext', {}).get('formats', None) or self.default_formats(path)
+            jupytext_formats = long_form_multiple_formats(jupytext_formats, nbk_metadata,
                                                         auto_ext_requires_language_info=False)
 
             # Compute paired notebooks from formats
