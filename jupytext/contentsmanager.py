@@ -323,7 +323,7 @@ def build_jupytext_contents_manager_class(base_contents_manager_class):
 
             nbk_metadata = nbk.get('metadata',{})
 
-            jupytext_formats = nbk_metadata.get('jupytext', {}).get('formats', None) or self.default_formats(path)
+            jupytext_formats = nbk_metadata.get('jupytext', {}).get('formats', {}) or self.default_formats(path)
             jupytext_formats = long_form_multiple_formats(jupytext_formats, nbk_metadata,
                                                         auto_ext_requires_language_info=False)
 
