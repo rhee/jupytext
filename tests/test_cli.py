@@ -145,7 +145,7 @@ def test_error_not_notebook_ext_input(tmpdir, capsys):
     with open(tmp_file, 'w') as fp:
         fp.write('\n')
 
-    with pytest.raises(JupytextFormatError, match="Extension '.ext' is not a notebook extension. Please use one of"):
+    with pytest.raises(InconsistentPath, match="is not a notebook. Supported extensions are"):
         jupytext([tmp_file, '--to', 'py'])
 
 
@@ -273,6 +273,32 @@ def test_ipynb_to_py_then_update_test(nb_file, tmpdir):
 
     jupytext(['--to', 'py', tmp_ipynb])
     jupytext(['--test', '--update', '--to', 'ipynb', tmp_nbpy])
+
+
+def test_test_to_ipynb_ignore_version_number_414(tmpdir, text="""# ---
+# jupyter:
+#   jupytext:
+#     text_representation:
+#       extension: .py
+#       format_name: light
+#       format_version: '1.4'
+#       jupytext_version: 1.1.0
+#   kernelspec:
+#     display_name: Python 3
+#     language: python
+#     name: python3
+# ---
+
+# A short markdown cell
+
+# Followed by a code cell
+2 + 2
+"""):
+    tmp_py = str(tmpdir.join('script.py'))
+    with open(tmp_py, 'w') as fp:
+        fp.write(text)
+
+    assert jupytext(['--test', '--to', 'ipynb', tmp_py]) == 0
 
 
 @pytest.mark.parametrize('nb_file', list_notebooks('ipynb_py'))
@@ -430,6 +456,13 @@ def test_sync_with_pre_commit_hook(tmpdir):
     nb = read(tmp_ipynb)
     compare(nb.cells, [new_markdown_cell('Notebook was edited')])
 
+    # create and commit a jpg file
+    tmp_jpg = str(tmpdir.join('image.jpg'))
+    with open(tmp_jpg, 'wb') as fp:
+        fp.write(b'')
+    git('add', 'image.jpg')
+    git('commit', '-m', 'added image')
+
 
 @requires_jupytext_installed
 @skip_if_dict_is_not_ordered
@@ -501,6 +534,7 @@ def test_pre_commit_hook_py_to_ipynb_and_md(tmpdir):
 
 @requires_black
 @requires_flake8
+@requires_jupytext_installed
 @pytest.mark.parametrize('nb_file', list_notebooks('ipynb_py')[:1])
 def test_pre_commit_hook_sync_black_flake8(tmpdir, nb_file):
     # Load real notebook metadata to get the 'auto' extension in --pipe-fmt to work
@@ -1068,3 +1102,32 @@ def test_339_require_to(tmpdir):
 
     with pytest.raises(ValueError, match='--to'):
         jupytext([tmp_py, '--test-strict'])
+
+
+def test_399_to_script_then_set_formats(tmpdir):
+    nb = new_notebook(cells=[new_code_cell('1 + 1')])
+    tmp_py = str(tmpdir.join('notebook_first.py'))
+    tmp_ipynb = str(tmpdir.join('notebook_first.ipynb'))
+    nbformat.write(nb, tmp_ipynb)
+
+    jupytext(['--to', 'py:percent', tmp_ipynb])
+    assert os.path.isfile(tmp_py)
+
+    jupytext(['--set-formats', 'ipynb,py:percent', tmp_ipynb])
+
+
+def test_set_format_with_subfolder(tmpdir):
+    """Here we reproduce issue #450"""
+    py = """# %% [markdown]
+# A short notebook
+"""
+
+    tmpdir.mkdir('python_scripts')
+
+    with open(str(tmpdir.join('python_scripts').join('01_tabular_data_exploration.py')), 'w') as fp:
+        fp.write(py)
+
+    os.chdir(str(tmpdir))
+    jupytext(['--set-formats',
+              'python_scripts//py:percent,notebooks//ipynb',
+              'python_scripts/01_tabular_data_exploration.py'])

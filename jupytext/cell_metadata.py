@@ -49,7 +49,7 @@ _IGNORE_CELL_METADATA = ','.join('-{}'.format(name) for name in [
     'autoscroll', 'collapsed', 'scrolled', 'trusted', 'ExecuteTime'] +
                                  _JUPYTEXT_CELL_METADATA)
 
-_IDENTIFIER_RE = re.compile(r'^[a-zA-Z_\\.]+[a-zA-Z0-9_\\.]*$')
+_IDENTIFIER_RE = re.compile(r'^[a-zA-Z_\.]+[a-zA-Z0-9_\.]*$')
 
 
 def _r_logical_values(pybool):
@@ -266,13 +266,6 @@ def rmd_options_to_metadata(options, use_runtools=False):
     return metadata.get('language') or language, metadata
 
 
-def metadata_to_md_options(metadata):
-    """Encode {'class':None, 'key':'value'} into 'class key="value"' """
-
-    return ' '.join(["{}={}".format(key, dumps(metadata[key]))
-                     if metadata[key] is not None else key for key in metadata])
-
-
 def try_eval_metadata(metadata, name):
     """Evaluate the metadata to a python object, if possible"""
     value = metadata[name]
@@ -345,7 +338,7 @@ def parse_key_equal_value(text):
     last_space_pos = text.rfind(' ')
 
     # Just an identifier?
-    if isidentifier(text[last_space_pos + 1:]):
+    if not text.startswith('--') and isidentifier(text[last_space_pos + 1:]):
         key = text[last_space_pos + 1:]
         value = None
         result = {key: value}

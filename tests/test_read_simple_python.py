@@ -534,7 +534,7 @@ print('Hello world')
     compare(pynb2, pynb)
 
 
-def test_read_write_script_with_metadata_241(pynb="""#!/usr/bin/env python3
+def test_read_write_script_with_metadata_241(no_jupytext_version_number, pynb="""#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # ---
 # jupyter:
@@ -542,8 +542,6 @@ def test_read_write_script_with_metadata_241(pynb="""#!/usr/bin/env python3
 #     text_representation:
 #       extension: .py
 #       format_name: light
-#       format_version: '1.4'
-#       jupytext_version: 1.1.2
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -559,11 +557,7 @@ a + 1
     assert 'encoding' in nb.metadata['jupytext']
     pynb2 = jupytext.writes(nb, 'py')
 
-    # remove version information
-    def remove_version_info(text):
-        return '\n'.join([line for line in text.splitlines() if 'version' not in line])
-
-    compare(remove_version_info(pynb2), remove_version_info(pynb))
+    compare(pynb2, pynb)
 
 
 def test_notebook_blank_lines(script="""# +
@@ -941,3 +935,24 @@ interpreter = 'python'
     compare_notebooks(nb, ref)
     py = jupytext.writes(nb, 'py')
     compare(py, text)
+
+
+def test_indented_bash_command(no_jupytext_version_number,
+                               nb=new_notebook(cells=[new_code_cell("""try:
+    !echo jo
+    pass
+except:
+    pass""")]),
+                               text="""try:
+#     !echo jo
+    pass
+except:
+    pass
+"""
+
+                               ):
+    """Reproduces https://github.com/mwouts/jupytext/issues/437"""
+    py = jupytext.writes(nb, 'py')
+    compare(py, text)
+    nb2 = jupytext.reads(py, 'py')
+    compare_notebooks(nb2, nb)

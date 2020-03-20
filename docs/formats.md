@@ -41,6 +41,7 @@ Code cells are encoded using the classical triple backticks, followed by the not
 
 Code snippets are turned into code cells in Jupyter as soon as they have an explicit language, when that language is supported in Jupyter. Thus, you have a code snippet that you don't want to execute in Jupyter, you can either
 - remove the language information, 
+- or, start the code snippet with a triple tilde, e.g. `~~~python`, instead of ` ```python`
 - or, add an `active="md"` cell metadata, or a `.noeval` attribute after the language information, e.g. ` ```python .noeval `
 - or, surround the code snippet with explicit Markdown cell markers (see below).
 
@@ -81,6 +82,77 @@ In Pandoc Markdown, all cells are marked with pandoc divs (`:::`). The format is
 See for instance how our `World population.ipynb` notebook is [represented](https://github.com/mwouts/jupytext/blob/master/demo/World%20population.pandoc.md#) in the `md:pandoc` format.
 
 If you wish to use that format, please install `pandoc` in version 2.7.2 or above, with e.g. `conda install pandoc -c conda-forge`.
+
+### MyST Markdown
+
+[MyST (Markedly Structured Text)][myst-parser] is a markdown flavor that "implements the best parts of reStructuredText". It provides a way to call Sphinx directives and roles from within Markdown,
+using a *slight* extension of CommonMark markdown.
+[MyST-NB][myst-nb] builds on this markdown flavor, to offer direct conversion of Jupyter Notebooks into Sphinx documents.
+
+Similar to the jupytext Markdown format, MyST Markdown uses code blocks to contain code cells.
+The difference though, is that the metadata is contained in a YAML block:
+
+````md
+```{code-cell} ipython3
+---
+other:
+  more: true
+tags: [hide-output, show-input]
+---
+
+print("Hallo!")
+```
+````
+
+The `ipython3` here is purely optional, as an aide for syntax highlighting.
+In the round-trip, it is copied from `notebook.metadata.language_info.pygments_lexer`.
+
+Also, where possible the conversion will use the short-hand metadata format
+(see the [MyST guide](https://myst-parser.readthedocs.io/en/latest/using/syntax.html#parameterizing-directives)):
+
+````md
+```{code-cell} ipython3
+:tags: [hide-output, show-input]
+
+print("Hallo!")
+```
+````
+
+Raw cells are also represented in a similare fashion:
+
+````md
+```{raw-cell}
+:raw_mimetype: text/html
+
+<b>Bold text<b>
+```
+````
+
+Markdown cells are not wrapped. If a markdown cell has metadata, or
+directly proceeds another markdown cell, then a [block break] will be inserted
+above it, with an (optional) single line JSON representation of the metadata:
+
+```md
++++ {"slide": true}
+
+This is a markdown cell with metadata
+
++++
+
+This is a new markdown cell with no metadata
+```
+
+See for instance how our `World population.ipynb` notebook is [represented](https://github.com/mwouts/jupytext/blob/master/demo/World%20population.myst.md#) in the `myst` format.
+
+If you wish to use that format, please install `conda install -c conda-forge myst-parser`,
+or `pip install jupytext[myst]`.
+
+**Tip**: You can use the [myst-highlight] VS Code extension to provide better syntax highlighting for this format.
+
+[myst-parser]: https://myst-parser.readthedocs.io
+[myst-nb]: https://myst-nb.readthedocs.io
+[block break]: https://myst-parser.readthedocs.io/en/latest/using/syntax.html#block-breaks
+[myst-highlight]: https://marketplace.visualstudio.com/items?itemName=ExecutableBookProject.myst-highlight
 
 ## Notebooks as scripts
 
@@ -140,9 +212,9 @@ to your `.jupyter/jupyter_notebook_config.py` file.
 
 See how our `World population.ipynb` notebook is [represented](https://github.com/mwouts/jupytext/blob/master/demo/World%20population.lgt.py) in that format.
 
-### The `bare` format
+### The `nomarker` format
 
-The `bare` format is a variation of the `light` format with no cell marker at all. Please note that this format does not provide round-trip consistency - code cells are split on code paragraphs. By default, the `bare` format still includes a YAML header - if you prefer to also remove the header, set `"notebook_metadata_filter": "-all"` in the jupytext section of your notebook metadata.
+The `nomarker` format is a variation of the `light` format with no cell marker at all. Please note that this format does not provide round-trip consistency - code cells are split on code paragraphs. By default, the `nomarker` format still includes a YAML header - if you prefer to also remove the header, set `"notebook_metadata_filter": "-all"` in the jupytext section of your notebook metadata.
 
 ### The `percent` format
 
@@ -195,9 +267,9 @@ that uses multiline comments
 """
 ```
 
-By default Jupytext will use line comments when it converts your Jupyter notebooks for `percent` scripts. If you prefer to use multiline comments for all text cells, add a `{"jupytext": '{"cell_markers": "\\"\\"\\""}'}` metadata to your notebook, either with the notebook metadata editor in Jupyter, or at the command line:
+By default Jupytext will use line comments when it converts your Jupyter notebooks for `percent` scripts. If you prefer to use multiline comments for all text cells, add a `{"jupytext": {"cell_markers": "\"\"\""}}` metadata to your notebook, either with the notebook metadata editor in Jupyter, or at the command line:
 ```bash
-jupytext --update-metadata '{"jupytext": {"cell_markers": "\\"\\"\\""}}' notebook.ipynb --to py:percent
+jupytext --update-metadata '{"jupytext": {"cell_markers": "\"\"\""}}' notebook.ipynb --to py:percent
 ```
 
 If you want to use multiline comments for all your paired notebooks, you could also add

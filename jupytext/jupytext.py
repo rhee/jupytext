@@ -19,6 +19,7 @@ from .cell_metadata import _IGNORE_CELL_METADATA
 from .languages import default_language_from_metadata_and_ext, set_main_and_cell_language
 from .pep8 import pep8_lines_between_cells
 from .pandoc import md_to_notebook, notebook_to_md
+from .myst import myst_extensions, myst_to_notebook, notebook_to_myst, MYST_FORMAT_NAME
 
 
 class TextNotebookConverter(NotebookReader, NotebookWriter):
@@ -54,6 +55,9 @@ class TextNotebookConverter(NotebookReader, NotebookWriter):
         if self.fmt.get('format_name') == 'pandoc':
             return md_to_notebook(s)
 
+        if self.fmt.get('format_name') == MYST_FORMAT_NAME:
+            return myst_to_notebook(s)
+
         lines = s.splitlines()
 
         cells = []
@@ -71,21 +75,22 @@ class TextNotebookConverter(NotebookReader, NotebookWriter):
         if self.implementation.format_name and self.implementation.format_name.startswith('sphinx'):
             cells.append(new_code_cell(source='%matplotlib inline'))
 
-        cell_metadata = set()
         cell_metadata_json = False
 
         while lines:
             reader = self.implementation.cell_reader_class(self.fmt, default_language)
             cell, pos = reader.read(lines)
             cells.append(cell)
-            cell_metadata.update(cell.metadata.keys())
             cell_metadata_json = cell_metadata_json or reader.cell_metadata_json
             if pos <= 0:
                 raise Exception('Blocked at lines ' + '\n'.join(lines[:6]))  # pragma: no cover
             lines = lines[pos:]
 
-        update_metadata_filters(metadata, jupyter_md, cell_metadata)
         set_main_and_cell_language(metadata, cells, self.implementation.extension)
+        cell_metadata = set()
+        for cell in cells:
+            cell_metadata.update(cell.metadata.keys())
+        update_metadata_filters(metadata, jupyter_md, cell_metadata)
 
         if cell_metadata_json:
             metadata.setdefault('jupytext', {}).setdefault('cell_metadata_json', True)
@@ -108,7 +113,7 @@ class TextNotebookConverter(NotebookReader, NotebookWriter):
 
             cells = []
             for cell in nb.cells:
-                cell_metadata = filter_metadata(copy(cell.metadata),
+                cell_metadata = filter_metadata(cell.metadata,
                                                 self.fmt.get('cell_metadata_filter'),
                                                 _IGNORE_CELL_METADATA)
                 if cell.cell_type == 'code':
@@ -122,6 +127,26 @@ class TextNotebookConverter(NotebookReader, NotebookWriter):
                 metadata=metadata,
                 cells=cells))
 
+        if self.fmt.get('format_name') == MYST_FORMAT_NAME or self.ext in myst_extensions(no_md=True):
+            pygments_lexer = metadata.get("language_info", {}).get("pygments_lexer", None)
+            metadata = insert_jupytext_info_and_filter_metadata(metadata, self.ext, self.implementation)
+
+            cells = []
+            for cell in nb.cells:
+                cell_metadata = filter_metadata(cell.metadata,
+                                                self.fmt.get('cell_metadata_filter'),
+                                                _IGNORE_CELL_METADATA)
+                if cell.cell_type == 'code':
+                    cells.append(new_code_cell(source=cell.source, metadata=cell_metadata))
+                else:
+                    cells.append(NotebookNode(source=cell.source, metadata=cell_metadata, cell_type=cell.cell_type))
+            return notebook_to_myst(NotebookNode(
+                nbformat=nb.nbformat,
+                nbformat_minor=nb.nbformat_minor,
+                metadata=metadata,
+                cells=cells),
+                default_lexer=pygments_lexer)
+
         # Copy the notebook, in order to be sure we do not modify the original notebook
         nb = NotebookNode(
             nbformat=nb.nbformat,
@@ -130,16 +155,15 @@ class TextNotebookConverter(NotebookReader, NotebookWriter):
             cells=nb.cells)
 
         metadata = nb.metadata
-        default_language = default_language_from_metadata_and_ext(metadata, self.implementation.extension) or 'python'
+        default_language = default_language_from_metadata_and_ext(metadata,
+                                                                  self.implementation.extension,
+                                                                  True) or 'python'
         self.update_fmt_with_notebook_options(nb.metadata)
         if 'use_runtools' not in self.fmt:
             for cell in nb.cells:
                 if cell.metadata.get('hide_input', False) or cell.metadata.get('hide_output', False):
                     self.fmt['use_runtools'] = True
                     break
-
-        if 'main_language' in metadata.get('jupytext', {}):
-            del metadata['jupytext']['main_language']
 
         header = encoding_and_executable(nb, metadata, self.ext)
         header_content, header_lines_to_next_cell = metadata_and_cell_to_header(nb, metadata,

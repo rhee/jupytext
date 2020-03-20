@@ -1,3 +1,78 @@
+1.4.1 (2020-03-19)
+------------------
+
+**Added**
+- Script of script (SoS) notebooks are now supported. Thanks to Thomas Pernet-coudrier for contributing the sample notebook (#453).
+- New MyST Markdown format (`md:myst`), developed by the [ExecutableBookProject](https://github.com/ExecutableBookProject) team. Read more about the MyST Markdown format in the [documentation](https://jupytext.readthedocs.io/en/latest/formats.html#myst-markdown). And many thanks to Chris Sewell for contributing the actual implementation! (#447 #456 #458)
+
+**Fixed**
+- When using `jupytext --pipe cmd`, the output of `cmd` should not appear in the terminal (#432)
+ 
+
+1.4.0 (2020-03-09)
+------------------
+
+**Changed**
+- The new jupyterlab extension (in version 1.2.0) is compatible with JupyterLab 2.0. Many thanks to Jean Helie! (#449)
+- It is not compatible with JupyterLab 1.x anymore. If you wish, you can install manually the previous version of the extension with `jupyter labextension install jupyterlab-jupytext@1.1.1`.
+
+**Fixed**
+- Display the output/errors of command executed with `jupytext --pipe` or `jupytext --check` (#432)
+
+1.3.5 (2020-03-08)
+------------------
+
+**Fixed**
+- Removed leading slash in notebook paths (#444)
+- Fixed `jupytext --set-formats` when using formats with prefix and/or suffix (#450)
+
+
+1.3.4 (2020-02-18)
+------------------
+
+**Added**
+- C# and F# Jupyter notebooks are now supported (#427, #429) 
+
+**Fixed**
+- `jupytext --to script *.ipynb` now computes the script extension for each notebook (#428) 
+- Fix shebang handling for languages with non-# comments, by Jonas Bushart (#434)
+- Indented bash commands are now commented out (#437)
+- The main formats are documented in `jupytext --help` (#426, #433)
+
+
+1.3.3 (2020-01-27)
+------------------
+
+**Added**
+- Jupytext has a logo! Many thanks to Kyle Kelley for contributing the actual logo (#423), and to Chris Holdgraf for suggesting this (#260).
+- Nested metadata filtering is now supported! You can use this to rid of `jupytext_version` if you wish (#416).
+
+**Fixed**
+- Code cells in the Markdown format can contain triple backticks inside multiline strings (#419).
+- Changes in the YAML header when running `jupytext --test` on text files are ignored (#414).
+
+1.3.2 (2020-01-08)
+------------------
+
+**Fixed**
+- The `--pre-commit` mode now ignores non-notebook files in the index (#338).
+- `nbformat_minor` is taken from the notebook with outputs When inputs and outputs are merged.
+
+1.3.1 (2019-12-26)
+------------------
+
+**Added**
+- New `nomarker` format in the Jupyter Notebook and JupyterLab extensions (#397)
+
+**Changed**
+- The `normarker` format replaces the one previously named `bare`.
+
+**Fixed**
+- Multiline strings are now accepted in the YAML header (#404). Fix contributed by ZHUO Qiang (#405).
+- Fixed the instructions on how to use multiline comments for all Markdown cells in the py:percent format, by ZHUO Qiang  (#403).
+- Added `cd` to the list of magic commands.
+- Do not read paired files when `--set-formats` is being used (fixes #399).
+
 1.3.0 (2019-11-23)
 ------------------
 

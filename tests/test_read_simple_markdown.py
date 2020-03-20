@@ -490,7 +490,7 @@ a = 1
     assert nb.cells[1].source == 'a = 1'
 
     text2 = jupytext.writes(nb, 'md')
-    compare(text2, text.replace('```IDL', '```idl'))
+    compare(text2, text)
 
 
 def test_inactive_cell(text='''```python active="md"
@@ -590,6 +590,23 @@ def test_two_markdown_cell_with_no_language_code_works(nb=new_notebook(cells=[
     text = jupytext.writes(nb, 'md')
     nb2 = jupytext.reads(text, 'md')
     compare_notebooks(nb2, nb)
+
+
+def test_markdown_cell_with_code_inside_multiline_string_419(text='''```python
+readme = """
+above
+
+```python
+x = 2
+```
+
+below
+"""
+```
+'''):
+    nb = jupytext.reads(text, 'md')
+    compare(jupytext.writes(nb, 'md'), text)
+    assert len(nb.cells) == 1
 
 
 def test_notebook_with_python3_magic(no_jupytext_version_number,

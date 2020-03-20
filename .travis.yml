@@ -1,7 +1,6 @@
 language: python
 python:
   - "3.6"
-  - "pypy"
   - "2.7"
   - "3.4"
   - "3.5"
@@ -40,7 +39,7 @@ install:
       pip install -r requirements.txt;
     fi
   # install is required for testing the pre-commit mode
-  - pip install . || true
+  - pip install .[myst] || true
   # install black if available (Python 3.6 and above), and autopep8 for testing the pipe mode
   - pip install black || true
   - pip install autopep8 || true
@@ -59,4 +58,5 @@ script:
   - echo "from IPython.core.display import HTML; HTML(u'\xd7')" | jupytext --from py --to ipynb --set-kernel - --execute > out.ipynb
 after_success:
   - coverage report -m
-  - codecov
+  # Coverage is best with miniconda 3
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "3.4" ]]; then codecov; fi

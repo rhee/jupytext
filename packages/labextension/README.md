@@ -19,19 +19,15 @@ Installing Jupytext will trigger a build of JupyterLab the next time you open it
 jupyter lab build
 ```
 
-In case you're not using JupyterLab 1.0, you may have to install another version of the extension that is compatible with your version. For instance, install the last version of the extension compatible with Jupyter 0.35 with
+In case you're not using the latest version of JupyterLab, you may have to install another version of the extension that is compatible with your version. For instance, install the last version of the extension compatible with Jupyter 1.x with
 
 ```bash
-jupyter labextension install jupyterlab-jupytext@0.19
+jupyter labextension install jupyterlab-jupytext@1.1.1
 ```
 
 # How to develop this extension
 
-We assume that you have activated the conda environment described in [CONTRIBUTING.md](https://github.com/mwouts/jupytext/blob/master/CONTRIBUTING.md). In addition to that environment, you will need `npm`. Install it with 
-
-```bash
-conda install nodejs
-```
+We assume that you have activated the conda environment described in [CONTRIBUTING.md](https://github.com/mwouts/jupytext/blob/master/CONTRIBUTING.md).
 
 In that environment, install JupyterLab's plugin manager, and the extension with
 ```bash

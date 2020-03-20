@@ -13,7 +13,13 @@ from jupytext.compare import compare_notebooks, combine_inputs_with_outputs
 from jupytext.formats import long_form_one_format, check_auto_ext, auto_ext_from_metadata
 from jupytext.languages import _SCRIPT_EXTENSIONS
 from jupytext.paired_paths import full_path
-from .utils import list_notebooks, skip_if_dict_is_not_ordered, requires_pandoc, requires_sphinx_gallery
+from .utils import (
+    list_notebooks,
+    skip_if_dict_is_not_ordered,
+    requires_pandoc,
+    requires_sphinx_gallery,
+    requires_myst,
+)
 
 pytestmark = skip_if_dict_is_not_ordered
 
@@ -35,7 +41,7 @@ def assert_conversion_same_as_mirror(nb_file, fmt, mirror_name, compare_notebook
     file_name, org_ext = os.path.splitext(basename)
     fmt = long_form_one_format(fmt)
     notebook = jupytext.read(nb_file, fmt=fmt)
-    check_auto_ext(fmt, notebook.metadata, '')
+    fmt = check_auto_ext(fmt, notebook.metadata, '')
     ext = fmt['extension']
     mirror_file = os.path.join(dirname, '..', 'mirror', mirror_name, full_path(file_name, fmt))
 
@@ -48,7 +54,9 @@ def assert_conversion_same_as_mirror(nb_file, fmt, mirror_name, compare_notebook
 
     # Compare the text representation of the two notebooks
     if compare_notebook:
-        nb_mirror = jupytext.read(mirror_file)
+        # Read and convert the mirror file to the latest nbformat version if necessary
+        nb_mirror = jupytext.read(mirror_file, as_version=notebook.nbformat)
+        nb_mirror.nbformat_minor = notebook.nbformat_minor
         compare(nb_mirror, notebook)
         return
     elif ext == '.ipynb':
@@ -121,6 +129,13 @@ def test_ipynb_to_Rmd(nb_file, no_jupytext_version_number):
                          list_notebooks('ipynb', skip='(functional|Notebook with|flavors|invalid|305)'))
 def test_ipynb_to_pandoc(nb_file, no_jupytext_version_number):
     assert_conversion_same_as_mirror(nb_file, 'md:pandoc', 'ipynb_to_pandoc')
+
+
+@requires_myst
+@pytest.mark.parametrize('nb_file',
+                         list_notebooks('ipynb_all', skip='html-demo|julia_functional_geometry|xcpp_by_quantstack'))
+def test_ipynb_to_myst(nb_file, no_jupytext_version_number):
+    assert_conversion_same_as_mirror(nb_file, 'md:myst', 'ipynb_to_myst')
 
 
 @requires_sphinx_gallery

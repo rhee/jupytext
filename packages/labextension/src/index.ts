@@ -4,7 +4,7 @@ import { ICommandPalette } from "@jupyterlab/apputils";
 
 import { INotebookTracker } from "@jupyterlab/notebook";
 
-import { nbformat } from "@jupyterlab/coreutils";
+import * as nbformat from "@jupyterlab/nbformat";
 
 interface JupytextRepresentation {
   format_name: string;
@@ -36,8 +36,16 @@ const JUPYTEXT_FORMATS = [
     label: "Pair Notebook with Hydrogen Script"
   },
   {
+    format: "auto:nomarker",
+    label: "Pair Notebook with nomarker Script"
+  },
+  {
     format: "md",
     label: "Pair Notebook with Markdown"
+  },
+  {
+    format: "md:myst",
+    label: "Pair Notebook with MyST Markdown"
   },
   {
     format: "Rmd",
@@ -141,7 +149,7 @@ const extension: JupyterFrontEndPlugin<void> = {
           if (format == "custom"){
               for (const i in jupytext_formats) {
                   const fmt = jupytext_formats[i];
-                  if (['ipynb', 'auto:light', 'auto:percent', 'auto:hydrogen', 'md', 'Rmd'].indexOf(fmt)==-1)
+                  if (['ipynb', 'auto:light', 'auto:percent', 'auto:hydrogen', 'auto:nomarker', 'md', 'Rmd', 'md:myst'].indexOf(fmt)==-1)
                       return true;
               }
               return false;

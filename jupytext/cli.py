@@ -10,8 +10,10 @@ import json
 from copy import copy
 from tempfile import NamedTemporaryFile
 from .jupytext import read, reads, write, writes
+from .formats import NOTEBOOK_EXTENSIONS, JUPYTEXT_FORMATS
 from .formats import _VALID_FORMAT_OPTIONS, _BINARY_FORMAT_OPTIONS, check_file_version
 from .formats import long_form_one_format, long_form_multiple_formats, short_form_one_format, check_auto_ext
+from .languages import _SCRIPT_EXTENSIONS
 from .header import recursive_update
 from .paired_paths import paired_paths, base_path, full_path, InconsistentPath
 from .combine import combine_inputs_with_outputs
@@ -76,10 +78,29 @@ def parse_jupytext_args(args=None):
                              'extension that matches the (optional) --from argument.\n')
     # Destination format & act on metadata
     parser.add_argument('--to',
-                        help="Destination format: either one of 'notebook', 'markdown',\n"
-                             "'rmarkdown', 'script', any valid notebook extension, or a\n"
-                             "full format description, i.e.\n"
-                             "'[prefix_path//][suffix.]ext[:format_name]")
+                        help="Destination format: either 'notebook' (extension .ipynb),\n"
+                             "'markdown' (.md), 'rmarkdown' (.Rmd), 'script', a supported\n"
+                             "extension, or an explicit extension/format description\n"
+                             "[prefix_path//][suffix.]ext[:format_name], where\n" +
+                             "- ext is one of {}, or auto\n"
+                        .format(', '.join(ext[1:] for ext in NOTEBOOK_EXTENSIONS)) +
+                             "- format_name is optional, and can be {} for Markdown\nfiles, and ".format(
+                                 ' or '.join(
+                                     set(fmt.format_name for fmt in JUPYTEXT_FORMATS if fmt.extension == '.md'))) +
+                             "{} for scripts.\n".format(
+                                 ', '.join(set(fmt.format_name for fmt in JUPYTEXT_FORMATS if fmt.extension == '.py')))
+                             +
+                             "The default format for scripts is the 'light' format,\n"
+                             "which uses few cell markers (none when possible).\n"
+                             "Alternatively, a format compatible with many editors is the\n"
+                             "'percent' format, which uses '# %%%%' as cell markers\n"
+                             "The main formats (markdown, light, percent) preserve\n"
+                             "notebooks and text documents in a roundtrip. Use the\n"
+                             "--test and and --test-strict commands to test the roundtrip\n"
+                             "on your files.\n"
+                             "Read more about the available formats at\n"
+                             "https://jupytext.readthedocs.io/en/latest/formats.html\n"
+                        )
     parser.add_argument('--format-options', '--opt',
                         action='append',
                         help='Set format options with e.g.\n'
@@ -243,7 +264,7 @@ def jupytext(args=None):
             and not args.pipe and not args.check \
             and not args.update_metadata and not args.set_kernel \
             and not args.execute:
-        raise ValueError('Please provide one of --to, --output, --sync, --pipe, '
+        raise ValueError('Please provide one of --to, --output, --set-formats, --sync, --pipe, '
                          '--check, --update_metadata, --set-kernel or --execute')
 
     if args.output and len(args.notebooks) != 1:
@@ -314,7 +335,7 @@ def jupytext_single_file(nb_file, args, log):
     # Compute actual extension when using script/auto, and update nb_dest if necessary
     dest_fmt = args.to
     if dest_fmt and dest_fmt['extension'] == '.auto':
-        check_auto_ext(dest_fmt, notebook.metadata, '--to')
+        dest_fmt = check_auto_ext(dest_fmt, notebook.metadata, '--to')
         if not args.output and nb_file != '-':
             nb_dest = full_path(base_path(nb_file, args.input_format), dest_fmt)
 
@@ -360,14 +381,15 @@ def jupytext_single_file(nb_file, args, log):
         if 'kernelspec' in args.update_metadata and 'main_language' in notebook.metadata.get('jupytext', {}):
             notebook.metadata['jupytext'].pop('main_language')
 
-    # Read paired notebooks
+    # Read paired notebooks, except if the pair is being created
     if args.sync:
         set_prefix_and_suffix(fmt, notebook, nb_file)
-        try:
-            notebook, inputs_nb_file, outputs_nb_file = load_paired_notebook(notebook, fmt, nb_file, log)
-        except NotAPairedNotebook as err:
-            sys.stderr.write('[jupytext] Warning: ' + str(err) + '\n')
-            return 0
+        if args.set_formats is None:
+            try:
+                notebook, inputs_nb_file, outputs_nb_file = load_paired_notebook(notebook, fmt, nb_file, log)
+            except NotAPairedNotebook as err:
+                sys.stderr.write('[jupytext] Warning: ' + str(err) + '\n')
+                return 0
 
     # II. ### Apply commands onto the notebook ###
     # Pipe the notebook into the desired commands
@@ -415,7 +437,19 @@ def jupytext_single_file(nb_file, args, log):
                     notebook = reads(dest_text, fmt=dest_fmt)
 
                 text = writes(notebook, fmt=fmt)
-                compare(text, org_text)
+
+                if args.test_strict:
+                    compare(text, org_text)
+                else:
+                    # we ignore the YAML header in the comparison #414
+                    comment = _SCRIPT_EXTENSIONS.get(fmt['extension'], {}).get('comment', '')
+                    # white spaces between the comment char and the YAML delimiters are allowed
+                    if comment:
+                        comment = comment + r'\s*'
+                    yaml_header = re.compile(r'^{}---\s*\n.*\n{}---\s*\n'.format(comment, comment),
+                                             re.MULTILINE | re.DOTALL)
+                    compare(re.sub(yaml_header, '', text),
+                            re.sub(yaml_header, '', org_text))
 
         except (NotebookDifference, AssertionError) as err:
             sys.stdout.write('{}: {}'.format(nb_file, str(err)))
@@ -587,17 +621,22 @@ def load_paired_notebook(notebook, fmt, nb_file, log):
     return notebook, latest_inputs, latest_outputs
 
 
-def exec_command(command, input=None):
+def exec_command(command, input=None, capture=False):
     """Execute the desired command, and pipe the given input into it"""
     if not isinstance(command, list):
         command = command.split(' ')
+    sys.stdout.write("[jupytext] Executing {}\n".format(' '.join(command)))
     process = subprocess.Popen(command,
                                **(dict(stdout=subprocess.PIPE, stdin=subprocess.PIPE) if input is not None else {}))
     out, err = process.communicate(input=input)
+    if out and not capture:
+        sys.stdout.write(out.decode('utf-8'))
+    if err:
+        sys.stderr.write(err.decode('utf-8'))
 
     if process.returncode:
-        sys.stderr.write("The command {} exited with code {}{}"
-                         .format(command, process.returncode, ': {}'.format(err or out) if err or out else ''))
+        sys.stderr.write("[jupytext] Error: The command '{}' exited with code {}\n"
+                         .format(' '.join(command), process.returncode))
         raise SystemExit(process.returncode)
 
     return out
@@ -612,7 +651,7 @@ def pipe_notebook(notebook, command, fmt='py:percent', update=True, prefix=None)
         command = command + ' {}'
 
     fmt = long_form_one_format(fmt, notebook.metadata, auto_ext_requires_language_info=False)
-    check_auto_ext(fmt, notebook.metadata, '--pipe-fmt')
+    fmt = check_auto_ext(fmt, notebook.metadata, '--pipe-fmt')
     text = writes(notebook, fmt)
 
     command = command.split(' ')
@@ -634,7 +673,7 @@ def pipe_notebook(notebook, command, fmt='py:percent', update=True, prefix=None)
             tmp.write(text)
             tmp.close()
 
-            exec_command([cmd if cmd != '{}' else tmp.name for cmd in command])
+            exec_command([cmd if cmd != '{}' else tmp.name for cmd in command], capture=update)
 
             if not update:
                 return notebook
@@ -643,7 +682,7 @@ def pipe_notebook(notebook, command, fmt='py:percent', update=True, prefix=None)
         finally:
             os.remove(tmp.name)
     else:
-        cmd_output = exec_command(command, text.encode('utf-8'))
+        cmd_output = exec_command(command, text.encode('utf-8'), capture=update)
 
         if not update:
             return notebook

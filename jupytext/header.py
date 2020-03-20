@@ -47,7 +47,7 @@ def encoding_and_executable(notebook, metadata, ext):
     jupytext_metadata = metadata.get('jupytext', {})
 
     if comment is not None and 'executable' in jupytext_metadata:
-        lines.append(comment + '!' + jupytext_metadata.pop('executable'))
+        lines.append('#!' + jupytext_metadata.pop('executable'))
 
     if 'encoding' in jupytext_metadata:
         lines.append(jupytext_metadata.pop('encoding'))
@@ -144,7 +144,7 @@ def header_to_metadata_and_cell(lines, header_prefix, ext=None):
     encoding_re = re.compile(r'^[ \t\f]*{}.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)'.format(comment))
 
     for i, line in enumerate(lines):
-        if i == 0 and line.startswith(comment + '!'):
+        if i == 0 and line.startswith('#!'):
             metadata.setdefault('jupytext', {})['executable'] = line[2:]
             start = i + 1
             continue
@@ -173,7 +173,7 @@ def header_to_metadata_and_cell(lines, header_prefix, ext=None):
 
         if _JUPYTER_RE.match(line):
             injupyter = True
-        elif not _LEFTSPACE_RE.match(line):
+        elif line and not _LEFTSPACE_RE.match(line):
             injupyter = False
 
         if injupyter:

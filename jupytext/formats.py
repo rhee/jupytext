@@ -5,6 +5,7 @@ new formats here!
 
 import os
 import re
+import warnings
 import nbformat
 from .header import header_to_metadata_and_cell, insert_or_test_version_number
 from .cell_reader import MarkdownCellReader, RMarkdownCellReader, \
@@ -18,6 +19,13 @@ from .stringparser import StringParser
 from .languages import _SCRIPT_EXTENSIONS, _COMMENT_CHARS, same_language
 from .pandoc import pandoc_version, is_pandoc_available
 from .magics import is_magic
+from .myst import (
+    MYST_FORMAT_NAME,
+    is_myst_available,
+    myst_version,
+    myst_extensions,
+    matches_mystnb,
+)
 
 
 class JupytextFormatError(ValueError):
@@ -100,7 +108,7 @@ JUPYTEXT_FORMATS = \
             min_readable_version_number='1.1') for ext in _SCRIPT_EXTENSIONS] + \
     [
         NotebookFormatDescription(
-            format_name='bare',
+            format_name='nomarker',
             extension=ext,
             header_prefix=_SCRIPT_EXTENSIONS[ext]['comment'],
             cell_reader_class=LightScriptCellReader,
@@ -161,6 +169,15 @@ if is_pandoc_available():
         cell_exporter_class=None,
         current_version_number=pandoc_version()))
 
+if is_myst_available():
+    JUPYTEXT_FORMATS.extend([NotebookFormatDescription(
+        format_name=MYST_FORMAT_NAME,
+        extension=ext,
+        header_prefix='',
+        cell_reader_class=None,
+        cell_exporter_class=None,
+        current_version_number=myst_version()) for ext in myst_extensions()])
+
 NOTEBOOK_EXTENSIONS = list(dict.fromkeys(['.ipynb'] + [fmt.extension for fmt in JUPYTEXT_FORMATS]))
 EXTENSION_PREFIXES = ['.lgt', '.spx', '.pct', '.hyd', '.nb']
 
@@ -180,6 +197,8 @@ def get_format_implementation(ext, format_name=None):
     if formats_for_extension:
         if ext in ['.md', '.markdown'] and format_name == 'pandoc':
             raise JupytextFormatError('Please install pandoc>=2.7.2')
+        if ext in myst_extensions() and format_name == MYST_FORMAT_NAME:
+            raise JupytextFormatError('Please install myst-parser')
 
         raise JupytextFormatError("Format '{}' is not associated to extension '{}'. "
                                   "Please choose one of: {}.".format(format_name, ext,
@@ -213,6 +232,8 @@ def read_format_from_metadata(text, ext):
 
 def guess_format(text, ext):
     """Guess the format and format options of the file, given its extension and content"""
+    if matches_mystnb(text, ext):
+        return MYST_FORMAT_NAME, {}
     lines = text.splitlines()
 
     metadata = read_metadata(text, ext)
@@ -447,11 +468,14 @@ def long_form_one_format(jupytext_format, metadata=None, update=None, auto_ext_r
     if not jupytext_format:
         return {}
 
-    common_name_to_ext = {'notebook': 'ipynb',
-                          'rmarkdown': 'Rmd',
-                          'markdown': 'md',
-                          'script': 'auto',
-                          'c++': 'cpp'}
+    common_name_to_ext = {
+        'notebook': 'ipynb',
+        'rmarkdown': 'Rmd',
+        'markdown': 'md',
+        'script': 'auto',
+        'c++': 'cpp',
+        'myst': 'md'
+    }
     if jupytext_format.lower() in common_name_to_ext:
         jupytext_format = common_name_to_ext[jupytext_format.lower()]
 
@@ -462,6 +486,11 @@ def long_form_one_format(jupytext_format, metadata=None, update=None, auto_ext_r
 
     if jupytext_format.rfind(':') >= 0:
         ext, fmt['format_name'] = jupytext_format.rsplit(':', 1)
+        if fmt['format_name'] == 'bare':
+            warnings.warn(
+                "The `bare` format has been renamed to `nomarker` - (see https://github.com/mwouts/jupytext/issues/397)",
+                DeprecationWarning)
+            fmt['format_name'] = 'nomarker'
     else:
         ext = jupytext_format
 
@@ -518,7 +547,7 @@ def short_form_one_format(jupytext_format):
 
     if jupytext_format.get('format_name'):
         if jupytext_format['extension'] not in ['.md', '.markdown', '.Rmd'] or \
-                jupytext_format['format_name'] == 'pandoc':
+                jupytext_format['format_name'] in ['pandoc', MYST_FORMAT_NAME]:
             fmt = fmt + ':' + jupytext_format['format_name']
 
     return fmt
@@ -577,18 +606,22 @@ def auto_ext_from_metadata(metadata):
     if auto_ext == '.r':
         return '.R'
 
+    if auto_ext == '.fs':
+        return '.fsx'
+
     return auto_ext
 
 
 def check_auto_ext(fmt, metadata, option):
-    """Raise a ValueError when the .auto extension cannot be determined"""
+    """Replace the auto extension with the actual file extension, and raise a ValueError if it cannot be determined"""
     if fmt['extension'] != '.auto':
-        return
+        return fmt
 
     auto_ext = auto_ext_from_metadata(metadata)
     if auto_ext:
+        fmt = fmt.copy()
         fmt['extension'] = auto_ext
-        return
+        return fmt
 
     raise ValueError("The notebook does not have a 'language_info' metadata. "
                      "Please replace 'auto' with the actual language extension in the {} option (currently {})."

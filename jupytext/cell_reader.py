@@ -263,7 +263,7 @@ class BaseCellReader(object):
 class MarkdownCellReader(BaseCellReader):
     """Read notebook cells from Markdown documents"""
     comment = ''
-    start_code_re = re.compile(r"^```({})($|\s(.*)$)".format(
+    start_code_re = re.compile(r"^```(\s*)({})($|\s.*$)".format(
         '|'.join(_JUPYTER_LANGUAGES_LOWER_AND_UPPER).replace('+', '\\+')))
     non_jupyter_code_re = re.compile(r"^```")
     end_code_re = re.compile(r"^```\s*$")
@@ -377,10 +377,17 @@ class MarkdownCellReader(BaseCellReader):
                     prev_blank = 0
         else:
             self.cell_type = 'code'
+            parser = StringParser(self.language or self.default_language)
             for i, line in enumerate(lines):
                 # skip cell header
                 if i == 0:
                     continue
+
+                if parser.is_quoted():
+                    parser.read_line(line)
+                    continue
+
+                parser.read_line(line)
                 if self.end_code_re.match(line):
                     return i, i + 1, True
 
@@ -509,7 +516,7 @@ class LightScriptCellReader(ScriptCellReader):
         self.comment = script['comment']
         self.ignore_end_marker = True
         self.explicit_end_marker_required = False
-        if fmt and 'cell_markers' in fmt and fmt['cell_markers'] != '+,-':
+        if fmt and fmt.get('format_name', 'light') == 'light' and 'cell_markers' in fmt and fmt['cell_markers'] != '+,-':
             self.cell_marker_start, self.cell_marker_end = fmt['cell_markers'].split(',', 1)
             self.start_code_re = re.compile('^' + self.comment + r'\s*' + self.cell_marker_start + r'(.*)$')
             self.end_code_re = re.compile('^' + self.comment + r'\s*' + self.cell_marker_end + r'\s*$')
